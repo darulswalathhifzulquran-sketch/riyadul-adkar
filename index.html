@@ -54,7 +54,22 @@
       document.getElementById('restart').style.display = 'block';
     }, 15000);
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // The previous Flutter service worker can keep serving old main.dart.js
+    // even after GitHub Pages publishes a newer commit.
+    (async function () {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(reg => reg.unregister()));
+        } catch (error) { console.warn('Service worker cleanup:', error); }
+      }
+      const script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js?v=20261119-reader-logo';
+      script.async = true;
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>
 
