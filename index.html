@@ -77,11 +77,16 @@
           }
         }
         if(hits<80 || maxX-minX<w*0.20 || maxY-minY<h*0.16) return;
-        const px=Math.max(3,Math.round((maxX-minX)*0.014));
-        const py=Math.max(3,Math.round((maxY-minY)*0.014));
-        const x0=Math.max(0,minX-px), y0=Math.max(0,minY-py);
-        const cw=Math.min(w-x0,maxX-minX+2*px+3);
-        const ch=Math.min(h-y0,maxY-minY+2*py+3);
+        const panelW=maxX-minX, panelH=maxY-minY;
+        // The original PDF prints Surah/Juz headings ABOVE the mint frame,
+        // and the page number BELOW it. Preserve both original paper strips
+        // instead of painting a second, inaccurate Flutter header/footer.
+        const px=Math.max(5,Math.round(panelW*0.025));
+        const topPad=Math.max(10,Math.round(panelH*0.085));
+        const bottomPad=Math.max(8,Math.round(panelH*0.070));
+        const x0=Math.max(0,minX-px), y0=Math.max(0,minY-topPad);
+        const cw=Math.min(w-x0,panelW+2*px+3);
+        const ch=Math.min(h-y0,panelH+topPad+bottomPad+3);
         const cropped=document.createElement('canvas');
         cropped.width=cw;cropped.height=ch;
         cropped.getContext('2d').drawImage(source,x0,y0,cw,ch,0,0,cw,ch);
@@ -89,6 +94,40 @@
         img.src=cropped.toDataURL('image/jpeg',0.94);
       } catch(e) {
         console.warn('Mushaf page crop unavailable; showing original',e);
+      }
+    };
+  </script>
+  <script>
+    // Counter target reached: audible chime on phones, computers and smart
+    // boards with speakers. Playback starts only after a real counter tap.
+    window.riyadTargetSound = function () {
+      try {
+        var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        var ctx = window._riyadCounterAudioContext;
+        if (!ctx || ctx.state === 'closed') {
+          ctx = new AudioContextClass();
+          window._riyadCounterAudioContext = ctx;
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+        var now = ctx.currentTime + 0.015;
+        var notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach(function (frequency, index) {
+          var start = now + index * 0.18;
+          var oscillator = ctx.createOscillator();
+          var volume = ctx.createGain();
+          oscillator.type = 'triangle';
+          oscillator.frequency.setValueAtTime(frequency, start);
+          volume.gain.setValueAtTime(0.001, start);
+          volume.gain.linearRampToValueAtTime(0.27, start + 0.025);
+          volume.gain.exponentialRampToValueAtTime(0.001, start + 0.27);
+          oscillator.connect(volume);
+          volume.connect(ctx.destination);
+          oscillator.start(start);
+          oscillator.stop(start + 0.28);
+        });
+      } catch (error) {
+        console.warn('Target sound unavailable on this device', error);
       }
     };
   </script>
