@@ -13,23 +13,37 @@ $specs = @(
 # Windows PowerShell 5.1 can treat native programs' stderr warnings
 # (including Git clone progress and Python FutureWarnings) as terminating
 # errors when ErrorActionPreference is Stop. Check exit codes instead.
+# Start native programs with OS-level stdout/stderr redirection. This avoids
+# Windows PowerShell 5.1 converting Python warnings into terminating errors.
 function Invoke-NativeSafe {
     param(
         [string]$Executable,
         [string[]]$Arguments,
         [switch]$Quiet
     )
-    $previousPreference = $ErrorActionPreference
+    $outFile = [System.IO.Path]::GetTempFileName()
+    $errFile = [System.IO.Path]::GetTempFileName()
     try {
-        $ErrorActionPreference = 'Continue'
-        if ($Quiet) {
-            & $Executable @Arguments 2>&1 | Out-Null
-        } else {
-            & $Executable @Arguments 2>&1 | Out-Host
+        # Start-Process joins its ArgumentList, so quote each argument to
+        # preserve paths containing spaces (including original PDF filenames).
+        $quoted = @(
+            foreach ($argValue in $Arguments) {
+                $part = [string]$argValue
+                '"' + $part.Replace('"', '\"') + '"'
+            }
+        ) -join ' '
+        $process = Start-Process -FilePath $Executable -ArgumentList $quoted -Wait -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $errFile -ErrorAction Stop
+        $exitCode = [int]$process.ExitCode
+        if (-not $Quiet -or $exitCode -ne 0) {
+            foreach ($file in @($outFile, $errFile)) {
+                if ((Test-Path -LiteralPath $file) -and (Get-Item -LiteralPath $file).Length -gt 0) {
+                    Get-Content -LiteralPath $file -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+                }
+            }
         }
-        return [int]$LASTEXITCODE
+        return $exitCode
     } finally {
-        $ErrorActionPreference = $previousPreference
+        Remove-Item -LiteralPath $outFile, $errFile -Force -ErrorAction SilentlyContinue
     }
 }
 function Git-Run {
@@ -95,6 +109,9 @@ try {
     $renderPython = $python[0].Source
     # Use the current non-deprecated PyMuPDF API.
     # A missing module is detected from its exit code, not warning text.
+    # Warnings are not fatal; only Python's process exit code matters.
+    $previousPythonWarnings = $env:PYTHONWARNINGS
+    $env:PYTHONWARNINGS = 'ignore::FutureWarning'
     $importExit = Invoke-NativeSafe -Executable $renderPython -Arguments @('-c', 'import pymupdf') -Quiet
     if ($importExit -ne 0) {
         Write-Host 'Preparing the PDF renderer (in a temporary isolated environment)...'
@@ -119,7 +136,10 @@ for source,key,expected in [(sys.argv[2],'swalath-3',3),(sys.argv[3],'swalath-4'
         pix.save(os.path.join(dest, f'{key}_page_{i+1:04d}.jpg'), jpg_quality=93)
 '@
     Write-Host 'Rendering exact PDF page layouts (3 + 1 + 1 pages)...'
-    $renderExit = Invoke-NativeSafe -Executable $renderPython -Arguments @('-c', $renderCode, $thumbs, $specs[0].source, $specs[1].source, $specs[2].source)
+    # A temporary .py file avoids quoting multi-line Python inside PowerShell.
+    $renderScript = Join-Path $base 'render-original-pdf-pages.py'
+    [System.IO.File]::WriteAllText($renderScript, $renderCode, (New-Object System.Text.UTF8Encoding($false)))
+    $renderExit = Invoke-NativeSafe -Executable $renderPython -Arguments @($renderScript, $thumbs, $specs[0].source, $specs[1].source, $specs[2].source)
     if ($renderExit -ne 0) { throw 'Could not render original PDF pages.' }
     $imagePaths = @(Get-ChildItem -LiteralPath $thumbs -Filter '*.jpg' -File)
     if ($imagePaths.Count -ne 5) { throw 'Five PDF page preview images were expected.' }
@@ -160,4 +180,10 @@ for source,key,expected in [(sys.argv[2],'swalath-3',3),(sys.argv[3],'swalath-4'
     Write-Host ('PUBLISH NOT COMPLETED: ' + $_.Exception.Message) -ForegroundColor Red
     Write-Host ('Temporary folder: ' + $base)
     return
+} finally {
+    if ($null -ne $previousPythonWarnings) {
+        $env:PYTHONWARNINGS = $previousPythonWarnings
+    } else {
+        Remove-Item Env:PYTHONWARNINGS -ErrorAction SilentlyContinue
+    }
 }
