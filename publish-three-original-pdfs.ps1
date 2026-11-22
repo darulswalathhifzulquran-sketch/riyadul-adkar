@@ -171,6 +171,10 @@ for source,key,expected in [(sys.argv[2],'swalath-3',3),(sys.argv[3],'swalath-4'
     foreach ($img in $imagePaths) { Copy-Item -LiteralPath $img.FullName -Destination (Join-Path $webBooks $img.Name) -Force }
     Git-Run -C $checkout add -f -- 'assets/assets/data/library.json' 'assets/assets/books/swalathu_taj.pdf' 'assets/assets/books/swalathu_nariyath.pdf' 'assets/assets/books/sayyidul_istighfar.pdf' 'assets/assets/web_books/swalath-3_page_0001.jpg' 'assets/assets/web_books/swalath-3_page_0002.jpg' 'assets/assets/web_books/swalath-3_page_0003.jpg' 'assets/assets/web_books/swalath-4_page_0001.jpg' 'assets/assets/web_books/dua-8_page_0001.jpg'
     Git-Run -C $checkout diff --cached --check
+    # GitHub-provided no-reply identity for the repo owner (verified GitHub user
+    # ID 316104416). Scope it ONLY to this disposable clone, not --global.
+    Git-Run -C $checkout config --local user.name 'darulswalathhifzulquran-sketch'
+    Git-Run -C $checkout config --local user.email '316104416+darulswalathhifzulquran-sketch@users.noreply.github.com'
     Git-Run -C $checkout commit -m 'Replace Nariyyath and Taj originals and add Sayyidul Istighfar PDF'
     Git-Run -C $checkout push origin main
     Write-Host 'SUCCESS: Changes pushed to GitHub Pages repository.' -ForegroundColor Green
