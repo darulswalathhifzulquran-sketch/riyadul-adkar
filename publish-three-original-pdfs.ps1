@@ -10,9 +10,31 @@ $specs = @(
     @{ id='swalath-4'; name='swalathu nnariyah.pdf'; sha='2277a373a09aa103cbdf008d2ae2503320134220824b17327eae5f907f8ead45'; pages=1; asset='swalathu_nariyath.pdf'; category='swalath' },
     @{ id='dua-8'; name='sayyidul isthia faar.pdf'; sha='768b97cf684ec5d48835d16eeedf086f86d6aeff487643bf0e2e6fb0d218145c'; pages=1; asset='sayyidul_istighfar.pdf'; category='dua' }
 )
+# Windows PowerShell 5.1 can treat native programs' stderr warnings
+# (including Git clone progress and Python FutureWarnings) as terminating
+# errors when ErrorActionPreference is Stop. Check exit codes instead.
+function Invoke-NativeSafe {
+    param(
+        [string]$Executable,
+        [string[]]$Arguments,
+        [switch]$Quiet
+    )
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        if ($Quiet) {
+            & $Executable @Arguments 2>&1 | Out-Null
+        } else {
+            & $Executable @Arguments 2>&1 | Out-Host
+        }
+        return [int]$LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
 function Git-Run {
-    & git @args
-    if ($LASTEXITCODE -ne 0) { throw ('Git failed: git ' + ($args -join ' ')) }
+    $code = Invoke-NativeSafe -Executable 'git' -Arguments $args
+    if ($code -ne 0) { throw ('Git failed (exit ' + $code + '): git ' + ($args -join ' ')) }
 }
 function Find-Original([hashtable]$spec) {
     $roots = New-Object 'System.Collections.Generic.List[string]'
@@ -71,18 +93,22 @@ try {
     if ($python.Count -eq 0) { throw 'Python is needed to prepare the five identical-layout PDF page previews. Install Python, then paste the same command again.' }
     New-Item -ItemType Directory -Force -Path $base, $thumbs | Out-Null
     $renderPython = $python[0].Source
-    & $renderPython -c 'import fitz' 2>$null
-    if ($LASTEXITCODE -ne 0) {
+    # Use the current non-deprecated PyMuPDF API.
+    # A missing module is detected from its exit code, not warning text.
+    $importExit = Invoke-NativeSafe -Executable $renderPython -Arguments @('-c', 'import pymupdf') -Quiet
+    if ($importExit -ne 0) {
         Write-Host 'Preparing the PDF renderer (in a temporary isolated environment)...'
         $venv = Join-Path $base 'python-env'
-        & $renderPython -m venv $venv
-        if ($LASTEXITCODE -ne 0) { throw 'Python virtual environment setup failed.' }
+        $venvExit = Invoke-NativeSafe -Executable $renderPython -Arguments @('-m', 'venv', $venv)
+        if ($venvExit -ne 0) { throw 'Python virtual environment setup failed.' }
         $renderPython = Join-Path $venv 'Scripts\python.exe'
-        & $renderPython -m pip install --disable-pip-version-check --quiet pymupdf
-        if ($LASTEXITCODE -ne 0) { throw 'Could not install the PDF rendering dependency.' }
+        $installExit = Invoke-NativeSafe -Executable $renderPython -Arguments @('-m', 'pip', 'install', '--disable-pip-version-check', '--quiet', 'pymupdf')
+        if ($installExit -ne 0) { throw 'Could not install the PDF rendering dependency.' }
     }
     $renderCode = @'
-import fitz, os, sys
+import pymupdf as fitz
+import os
+import sys
 dest=sys.argv[1]
 for source,key,expected in [(sys.argv[2],'swalath-3',3),(sys.argv[3],'swalath-4',1),(sys.argv[4],'dua-8',1)]:
     doc=fitz.open(source)
@@ -93,8 +119,8 @@ for source,key,expected in [(sys.argv[2],'swalath-3',3),(sys.argv[3],'swalath-4'
         pix.save(os.path.join(dest, f'{key}_page_{i+1:04d}.jpg'), jpg_quality=93)
 '@
     Write-Host 'Rendering exact PDF page layouts (3 + 1 + 1 pages)...'
-    & $renderPython -c $renderCode $thumbs $specs[0].source $specs[1].source $specs[2].source
-    if ($LASTEXITCODE -ne 0) { throw 'Could not render original PDF pages.' }
+    $renderExit = Invoke-NativeSafe -Executable $renderPython -Arguments @('-c', $renderCode, $thumbs, $specs[0].source, $specs[1].source, $specs[2].source)
+    if ($renderExit -ne 0) { throw 'Could not render original PDF pages.' }
     $imagePaths = @(Get-ChildItem -LiteralPath $thumbs -Filter '*.jpg' -File)
     if ($imagePaths.Count -ne 5) { throw 'Five PDF page preview images were expected.' }
     Write-Host 'Preparing existing published website, not Flutter source...'
