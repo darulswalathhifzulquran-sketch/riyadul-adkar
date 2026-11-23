@@ -181,35 +181,6 @@
     })();
   </script>
 
-  <!-- Small, independent social launcher. Flutter canvas remains untouched. -->
-  <style>
-    #jamia-links { position:fixed; right:14px; bottom:72px; z-index:1004; font-family:Arial,Helvetica,sans-serif; }
-    #jamia-links button { width:42px; height:42px; display:grid;place-items:center; margin-left:auto; cursor:pointer; color:#f4d68c; background:#09283e; border:1px solid #a98b4d; border-radius:50%; box-shadow:0 6px 20px #0007; font-size:19px; }
-    #jamia-links button:focus-visible,#jamia-links a:focus-visible { outline:2px solid #f4d68c;outline-offset:3px; }
-    #jamia-links-menu { position:absolute; bottom:50px;right:0; width:205px; padding:12px; border-radius:14px; background:#082336; border:1px solid #967b49; box-shadow:0 12px 36px #0009; color:#f9e9c8; box-sizing:border-box; }
-    #jamia-links-menu[hidden] {display:none;}
-    #jamia-links-menu strong { display:block;font-size:13px;letter-spacing:.3px;margin-bottom:8px; }
-    #jamia-links-menu a {display:block;text-decoration:none;color:#f5dfaa;font-size:13px;font-weight:600;border-radius:8px;padding:10px 8px; }
-    #jamia-links-menu a:hover {background:#164157;}
-    @media(max-width:560px){#jamia-links {right:10px;bottom:74px} #jamia-links button{width:38px;height:38px} }
-  </style>
-  <nav id="jamia-links" aria-label="Jamia official links">
-    <button type="button" id="jamia-links-open" aria-label="Open Jamia official links" aria-controls="jamia-links-menu" aria-expanded="false" title="Jamia official links">↗</button>
-    <div id="jamia-links-menu" hidden>
-      <strong>JAMIA IMAM NAVAVI (RA)</strong>
-      <a href="https://www.youtube.com/channel/UCAGtVdL6QJgPN6DKBBgJx-g" target="_blank" rel="noopener noreferrer">YouTube channel ↗</a>
-      <a href="https://jamiaimamnavavi-ra.com/" target="_blank" rel="noopener noreferrer">Official website ↗</a>
-    </div>
-  </nav>
-  <script>
-  (function(){
-    var btn=document.getElementById('jamia-links-open'), menu=document.getElementById('jamia-links-menu');
-    function show(value){ menu.hidden=!value; btn.setAttribute('aria-expanded',String(value)); }
-    btn.addEventListener('click',function(){show(menu.hidden)});
-    document.addEventListener('pointerdown',function(ev){if(!document.getElementById('jamia-links').contains(ev.target))show(false)});
-    document.addEventListener('keydown',function(ev){if(ev.key==='Escape')show(false)});
-  })();
-  </script>
 </body>
 </html>
 
